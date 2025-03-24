@@ -4,19 +4,17 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 
 const app = express();
-app.use(cors({
-    origin: "*",
+const corsOptions = {
+    origin: "https://mayankchoudhary.rf.gd", // Frontend URL added
     methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
     credentials: true
-}));
+};
+app.use(cors(corsOptions));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"],
-        credentials: true
-    }
+    cors: corsOptions
 });
 
 let users = {}; 
