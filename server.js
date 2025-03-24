@@ -20,18 +20,21 @@ let friendRequests = {};
 io.on("connection", (socket) => {
     console.log("User Connected:", socket.id);
 
+    // Unique ID generate karna
     socket.on("start", () => {
         users[socket.id] = { id: socket.id, friend: null };
         io.to(socket.id).emit("userId", socket.id);
     });
 
+    // Friend request bhejna
     socket.on("sendRequest", (toUserId) => {
-        if (users[toUserId]) {
+        if (users[toUserId] && !users[toUserId].friend) {
             friendRequests[toUserId] = socket.id;
             io.to(toUserId).emit("friendRequest", socket.id);
         }
     });
 
+    // Friend request accept karna
     socket.on("acceptRequest", (fromUserId) => {
         if (friendRequests[socket.id] === fromUserId) {
             users[socket.id].friend = fromUserId;
@@ -41,6 +44,7 @@ io.on("connection", (socket) => {
         }
     });
 
+    // Typing indicator
     socket.on("typing", (text) => {
         let friendId = users[socket.id]?.friend;
         if (friendId) {
@@ -48,17 +52,11 @@ io.on("connection", (socket) => {
         }
     });
 
-    socket.on("stopTyping", () => {
-        let friendId = users[socket.id]?.friend;
-        if (friendId) {
-            io.to(friendId).emit("clearTyping");
-        }
-    });
-
+    // Message bhejna
     socket.on("sendMessage", (message) => {
         let friendId = users[socket.id]?.friend;
         if (friendId) {
-            io.to(friendId).emit("receiveMessage", message);
+            io.to(friendId).emit("receiveMessage", { sender: socket.id, text: message });
         }
     });
 
