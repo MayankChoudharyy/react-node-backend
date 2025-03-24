@@ -41,6 +41,7 @@ io.on("connection", (socket) => {
             users[fromUserId].friend = socket.id;
             io.to(socket.id).emit("chatStarted", fromUserId);
             io.to(fromUserId).emit("chatStarted", socket.id);
+            delete friendRequests[socket.id]; // Request remove karna accept hone ke baad
         }
     });
 
@@ -67,6 +68,7 @@ io.on("connection", (socket) => {
             io.to(friendId).emit("chatEnded");
         }
         delete users[socket.id];
+        delete friendRequests[socket.id]; // Disconnect hone par request remove karo
         console.log("User Disconnected:", socket.id);
     });
 });
