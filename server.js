@@ -21,27 +21,30 @@ io.on("connection", (socket) => {
     console.log("User Connected:", socket.id);
 
     // Unique ID generate karna
-    socket.on("start", () => {
+    if (!users[socket.id]) {
         users[socket.id] = { id: socket.id, friend: null };
-        io.to(socket.id).emit("userId", socket.id);
-    });
+    }
+    io.to(socket.id).emit("userId", socket.id);
 
     // Friend request bhejna
     socket.on("sendRequest", (toUserId) => {
         if (users[toUserId] && !users[toUserId].friend) {
-            friendRequests[toUserId] = socket.id;
-            io.to(toUserId).emit("friendRequest", socket.id);
+            friendRequests[toUserId] = friendRequests[toUserId] || [];
+            if (!friendRequests[toUserId].includes(socket.id)) {
+                friendRequests[toUserId].push(socket.id);
+                io.to(toUserId).emit("friendRequest", socket.id);
+            }
         }
     });
 
     // Friend request accept karna
     socket.on("acceptRequest", (fromUserId) => {
-        if (friendRequests[socket.id] === fromUserId) {
+        if (friendRequests[socket.id]?.includes(fromUserId)) {
             users[socket.id].friend = fromUserId;
             users[fromUserId].friend = socket.id;
             io.to(socket.id).emit("chatStarted", fromUserId);
             io.to(fromUserId).emit("chatStarted", socket.id);
-            delete friendRequests[socket.id]; // Request remove karna accept hone ke baad
+            friendRequests[socket.id] = friendRequests[socket.id].filter(id => id !== fromUserId);
         }
     });
 
@@ -68,7 +71,7 @@ io.on("connection", (socket) => {
             io.to(friendId).emit("chatEnded");
         }
         delete users[socket.id];
-        delete friendRequests[socket.id]; // Disconnect hone par request remove karo
+        delete friendRequests[socket.id];
         console.log("User Disconnected:", socket.id);
     });
 });
