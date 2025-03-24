@@ -1,108 +1,77 @@
-import React, { useState, useEffect } from "react";
-import { io } from "socket.io-client";
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
 
-const socket = io("wss://react-node-backend-production.up.railway.app", {
-  transports: ["websocket", "polling"],
-  withCredentials: true
+const app = express();
+app.use(cors());
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
 });
 
-function App() {
-  const [userId, setUserId] = useState(null);
-  const [friendId, setFriendId] = useState("");
-  const [incomingRequest, setIncomingRequest] = useState(null);
-  const [connectedFriend, setConnectedFriend] = useState(null);
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [typingText, setTypingText] = useState("");
+let users = {}; 
+let friendRequests = {}; 
 
-  useEffect(() => {
-    socket.on("userId", (id) => setUserId(id));
-    socket.on("friendRequest", (id) => setIncomingRequest(id));
-    socket.on("chatStarted", (id) => {
-      setConnectedFriend(id);
-      setIncomingRequest(null);
+io.on("connection", (socket) => {
+    console.log("User Connected:", socket.id);
+
+    // Unique ID generate karna
+    socket.on("start", () => {
+        users[socket.id] = { id: socket.id, friend: null };
+        io.to(socket.id).emit("userId", socket.id);
     });
-    socket.on("displayTyping", (text) => setTypingText(text));
-    socket.on("receiveMessage", (msg) => {
-      setMessages((prev) => [...prev, msg]);
+
+    // Friend request bhejna
+    socket.on("sendRequest", (toUserId) => {
+        if (users[toUserId] && !users[toUserId].friend) {
+            friendRequests[toUserId] = socket.id;
+            io.to(toUserId).emit("friendRequest", socket.id);
+        }
     });
-  }, []);
 
-  const startChat = () => {
-    socket.emit("start");
-  };
+    // Friend request accept karna
+    socket.on("acceptRequest", (fromUserId) => {
+        if (friendRequests[socket.id] === fromUserId) {
+            users[socket.id].friend = fromUserId;
+            users[fromUserId].friend = socket.id;
+            io.to(socket.id).emit("chatStarted", fromUserId);
+            io.to(fromUserId).emit("chatStarted", socket.id);
+            delete friendRequests[socket.id]; // Request remove karna accept hone ke baad
+        }
+    });
 
-  const sendRequest = () => {
-    socket.emit("sendRequest", friendId);
-  };
+    // Typing indicator
+    socket.on("typing", (text) => {
+        let friendId = users[socket.id]?.friend;
+        if (friendId) {
+            io.to(friendId).emit("displayTyping", text);
+        }
+    });
 
-  const acceptRequest = () => {
-    socket.emit("acceptRequest", incomingRequest);
-    setIncomingRequest(null);
-  };
+    // Message bhejna
+    socket.on("sendMessage", (message) => {
+        let friendId = users[socket.id]?.friend;
+        if (friendId) {
+            io.to(friendId).emit("receiveMessage", { sender: socket.id, text: message });
+        }
+    });
 
-  const handleTyping = (e) => {
-    setMessage(e.target.value);
-    socket.emit("typing", e.target.value);
-  };
+    socket.on("disconnect", () => {
+        let friendId = users[socket.id]?.friend;
+        if (friendId && users[friendId]) {
+            users[friendId].friend = null;
+            io.to(friendId).emit("chatEnded");
+        }
+        delete users[socket.id];
+        delete friendRequests[socket.id]; // Disconnect hone par request remove karo
+        console.log("User Disconnected:", socket.id);
+    });
+});
 
-  const sendMessage = () => {
-    if (message.trim() !== "") {
-      socket.emit("sendMessage", message);
-      setMessages((prev) => [...prev, { sender: userId, text: message }]);
-      setMessage("");
-    }
-  };
-
-  return (
-    <div style={{ textAlign: "center", marginTop: "50px" }}>
-      {!userId ? (
-        <button onClick={startChat}>Start</button>
-      ) : (
-        <div>
-          <h3>Your ID: {userId}</h3>
-
-          {connectedFriend ? (
-            <div>
-              <h4>Chatting with: {connectedFriend}</h4>
-              <input 
-                type="text" 
-                placeholder="Type here..." 
-                value={message} 
-                onChange={handleTyping} 
-              />
-              <button onClick={sendMessage}>Send</button>
-              <p>Live Typing: {typingText}</p>
-
-              <div>
-                {messages.map((msg, index) => (
-                  <p key={index}>
-                    <b>{msg.sender === userId ? "You" : "Friend"}:</b> {msg.text}
-                  </p>
-                ))}
-              </div>
-            </div>
-          ) : incomingRequest ? (
-            <div>
-              <p>Friend Request from {incomingRequest}</p>
-              <button onClick={acceptRequest}>Accept</button>
-            </div>
-          ) : (
-            <div>
-              <input 
-                type="text" 
-                placeholder="Enter friend ID" 
-                value={friendId} 
-                onChange={(e) => setFriendId(e.target.value)} 
-              />
-              <button onClick={sendRequest}>Send Request</button>
-              <p>Share your ID with a friend to chat!</p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default App;
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(Server Running on Port ${PORT}));
