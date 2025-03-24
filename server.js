@@ -4,17 +4,16 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 
 const app = express();
-const corsOptions = {
-    origin: "https://mayankchoudhary.rf.gd", // Frontend URL added
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"],
-    credentials: true
-};
-app.use(cors(corsOptions));
-
 const server = http.createServer(app);
+
+// ✅ WebSocket CORS Fix
 const io = new Server(server, {
-    cors: corsOptions
+    cors: {
+        origin: "https://mayankchoudhary.rf.gd", // Frontend URL
+        methods: ["GET", "POST"],
+        allowedHeaders: ["Content-Type"],
+        credentials: true
+    }
 });
 
 let users = {}; 
@@ -75,5 +74,8 @@ io.on("connection", (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server Running on Port ${PORT}`));
+// ✅ Port Management (Fixed)
+const PORT = 5000;
+server.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Server Running on Port ${PORT}`);
+});
