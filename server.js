@@ -1,4 +1,3 @@
-// Backend (server.js)
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -56,7 +55,19 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("sendMessage", (message) => {
+        let friendId = users[socket.id]?.friend;
+        if (friendId) {
+            io.to(friendId).emit("receiveMessage", message);
+        }
+    });
+
     socket.on("disconnect", () => {
+        let friendId = users[socket.id]?.friend;
+        if (friendId && users[friendId]) {
+            users[friendId].friend = null;
+            io.to(friendId).emit("chatEnded");
+        }
         delete users[socket.id];
         console.log("User Disconnected:", socket.id);
     });
