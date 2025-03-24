@@ -4,13 +4,18 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: true
+}));
 
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: "*",
-        methods: ["GET", "POST"]
+        methods: ["GET", "POST"],
+        credentials: true
     }
 });
 
@@ -20,13 +25,11 @@ let friendRequests = {};
 io.on("connection", (socket) => {
     console.log("User Connected:", socket.id);
 
-    // Unique ID generate karna
     if (!users[socket.id]) {
         users[socket.id] = { id: socket.id, friend: null };
     }
     io.to(socket.id).emit("userId", socket.id);
 
-    // Friend request bhejna
     socket.on("sendRequest", (toUserId) => {
         if (users[toUserId] && !users[toUserId].friend) {
             friendRequests[toUserId] = friendRequests[toUserId] || [];
@@ -37,7 +40,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Friend request accept karna
     socket.on("acceptRequest", (fromUserId) => {
         if (friendRequests[socket.id]?.includes(fromUserId)) {
             users[socket.id].friend = fromUserId;
@@ -48,7 +50,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Typing indicator
     socket.on("typing", (text) => {
         let friendId = users[socket.id]?.friend;
         if (friendId) {
@@ -56,7 +57,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Message bhejna
     socket.on("sendMessage", (message) => {
         let friendId = users[socket.id]?.friend;
         if (friendId) {
@@ -70,8 +70,9 @@ io.on("connection", (socket) => {
             users[friendId].friend = null;
             io.to(friendId).emit("chatEnded");
         }
-        delete users[socket.id];
-        delete friendRequests[socket.id];
+        if (friendRequests[socket.id]) {
+            delete friendRequests[socket.id];
+        }
         console.log("User Disconnected:", socket.id);
     });
 });
