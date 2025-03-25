@@ -4,13 +4,26 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+app.use(cors({
+    origin: "https://mayankchoudhary.rf.gd",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
+    credentials: true
+}));
+
+app.get("/", (req, res) => {
+    res.send("🚀 WebSocket Server is Running!");
+});
 
 const server = http.createServer(app);
+
 const io = new Server(server, {
     cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+        origin: "https://mayankchoudhary.rf.gd",
+        methods: ["GET", "POST"],
+        allowedHeaders: ["Content-Type"],
+        credentials: true
     }
 });
 
@@ -18,34 +31,33 @@ let users = {};
 let friendRequests = {}; 
 
 io.on("connection", (socket) => {
-    console.log("User Connected:", socket.id);
+    console.log("🟢 User Connected:", socket.id);
 
-    // Unique ID generate karna
-    socket.on("start", () => {
+    if (!users[socket.id]) {
         users[socket.id] = { id: socket.id, friend: null };
-        io.to(socket.id).emit("userId", socket.id);
-    });
+    }
+    io.to(socket.id).emit("userId", socket.id);
 
-    // Friend request bhejna
     socket.on("sendRequest", (toUserId) => {
         if (users[toUserId] && !users[toUserId].friend) {
-            friendRequests[toUserId] = socket.id;
-            io.to(toUserId).emit("friendRequest", socket.id);
+            friendRequests[toUserId] = friendRequests[toUserId] || [];
+            if (!friendRequests[toUserId].includes(socket.id)) {
+                friendRequests[toUserId].push(socket.id);
+                io.to(toUserId).emit("friendRequest", socket.id);
+            }
         }
     });
 
-    // Friend request accept karna
     socket.on("acceptRequest", (fromUserId) => {
-        if (friendRequests[socket.id] === fromUserId) {
+        if (friendRequests[socket.id]?.includes(fromUserId)) {
             users[socket.id].friend = fromUserId;
             users[fromUserId].friend = socket.id;
             io.to(socket.id).emit("chatStarted", fromUserId);
             io.to(fromUserId).emit("chatStarted", socket.id);
-            delete friendRequests[socket.id]; // Request remove karna accept hone ke baad
+            friendRequests[socket.id] = friendRequests[socket.id].filter(id => id !== fromUserId);
         }
     });
 
-    // Typing indicator
     socket.on("typing", (text) => {
         let friendId = users[socket.id]?.friend;
         if (friendId) {
@@ -53,7 +65,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Message bhejna
     socket.on("sendMessage", (message) => {
         let friendId = users[socket.id]?.friend;
         if (friendId) {
@@ -62,16 +73,19 @@ io.on("connection", (socket) => {
     });
 
     socket.on("disconnect", () => {
+        console.log("🔴 User Disconnected:", socket.id);
+        
         let friendId = users[socket.id]?.friend;
         if (friendId && users[friendId]) {
             users[friendId].friend = null;
             io.to(friendId).emit("chatEnded");
         }
+        if (friendRequests[socket.id]) {
+            delete friendRequests[socket.id];
+        }
         delete users[socket.id];
-        delete friendRequests[socket.id]; // Disconnect hone par request remove karo
-        console.log("User Disconnected:", socket.id);
     });
 });
 
-const PORT =  5000;
-server.listen(PORT, () => console.log(Server Running on Port ${PORT}));
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`🚀 Server Running on Port ${PORT}`));
