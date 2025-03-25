@@ -29,15 +29,16 @@ const io = new Server(server, {
 });
 
 let users = {}; 
-let socketToUser = {}; // ✅ Mapping socket.id to userId
+let socketToUser = {}; 
 let friendRequests = {}; 
+let friends = {}; // ✅ Friend mapping (userId -> friendId)
 
 // ✅ Function to generate unique ID from 1 to 100
 const generateUserId = () => {
     let id;
     do {
-        id = Math.floor(Math.random() * 100) + 1; // Random number between 1 and 100
-    } while (Object.values(users).includes(id)); // Ensure uniqueness
+        id = Math.floor(Math.random() * 100) + 1;
+    } while (Object.values(users).includes(id));
     return id.toString();
 };
 
@@ -45,50 +46,57 @@ io.on("connection", (socket) => {
     const userId = generateUserId();
     console.log(`🟢 User Connected: ${userId} (Socket ID: ${socket.id})`);
 
-    users[userId] = socket.id; // ✅ Store mapping of userId → socket.id
-    socketToUser[socket.id] = userId; // ✅ Store mapping of socket.id → userId
+    users[userId] = socket.id; 
+    socketToUser[socket.id] = userId; 
 
-    io.to(socket.id).emit("userId", userId); // ✅ Send custom ID to user
+    io.to(socket.id).emit("userId", userId);
 
+    // ✅ Friend request send karega
     socket.on("sendRequest", (toUserId) => {
         if (users[toUserId]) {
-            let toSocketId = users[toUserId]; // ✅ Get socket.id of recipient
+            let toSocketId = users[toUserId];
             io.to(toSocketId).emit("friendRequest", userId);
         }
     });
 
+    // ✅ Friend request accept karega
     socket.on("acceptRequest", (fromUserId) => {
-        if (users[fromUserId]) {
-            let fromSocketId = users[fromUserId];
-            io.to(fromSocketId).emit("chatStarted", userId);
-            io.to(socket.id).emit("chatStarted", fromUserId);
+        if (users[fromUserId] && users[userId]) {
+            friends[userId] = fromUserId;
+            friends[fromUserId] = userId;
+            io.to(users[fromUserId]).emit("chatStarted", userId);
+            io.to(users[userId]).emit("chatStarted", fromUserId);
         }
     });
 
+    // ✅ Typing indicator sirf friend ke pass bheje
     socket.on("typing", (text) => {
-        let friendId = Object.keys(users).find(id => users[id] === socket.id);
-        if (friendId) {
+        let friendId = friends[userId];
+        if (friendId && users[friendId]) {
             io.to(users[friendId]).emit("displayTyping", text);
         }
     });
 
+    // ✅ Message sirf connected friend ko bheje
     socket.on("sendMessage", (message) => {
-        let friendId = Object.keys(users).find(id => users[id] === socket.id);
-        if (friendId) {
+        let friendId = friends[userId];
+        if (friendId && users[friendId]) {
             io.to(users[friendId]).emit("receiveMessage", { sender: userId, text: message });
         }
     });
 
+    // ✅ User disconnect kare to friend ko notify kare
     socket.on("disconnect", () => {
         console.log("🔴 User Disconnected:", userId);
 
-        let friendId = Object.keys(users).find(id => users[id] === socket.id);
-        if (friendId) {
+        let friendId = friends[userId];
+        if (friendId && users[friendId]) {
             io.to(users[friendId]).emit("chatEnded");
         }
 
         delete users[userId];
         delete socketToUser[socket.id];
+        delete friends[userId];
     });
 });
 
