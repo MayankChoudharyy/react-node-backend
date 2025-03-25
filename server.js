@@ -29,6 +29,7 @@ const io = new Server(server, {
 });
 
 let users = {}; 
+let socketToUser = {}; // ✅ Mapping socket.id to userId
 let friendRequests = {}; 
 
 // ✅ Function to generate unique ID from 1 to 100
@@ -36,63 +37,58 @@ const generateUserId = () => {
     let id;
     do {
         id = Math.floor(Math.random() * 100) + 1; // Random number between 1 and 100
-    } while (users[id]); // Ensure uniqueness
+    } while (Object.values(users).includes(id)); // Ensure uniqueness
     return id.toString();
 };
 
 io.on("connection", (socket) => {
     const userId = generateUserId();
-    console.log(`🟢 User Connected: ${userId}`);
+    console.log(`🟢 User Connected: ${userId} (Socket ID: ${socket.id})`);
 
-    users[userId] = { id: userId, friend: null };
-    io.to(socket.id).emit("userId", userId); // ✅ Send custom ID instead of socket.id
+    users[userId] = socket.id; // ✅ Store mapping of userId → socket.id
+    socketToUser[socket.id] = userId; // ✅ Store mapping of socket.id → userId
+
+    io.to(socket.id).emit("userId", userId); // ✅ Send custom ID to user
 
     socket.on("sendRequest", (toUserId) => {
-        if (users[toUserId] && !users[toUserId].friend) {
-            friendRequests[toUserId] = friendRequests[toUserId] || [];
-            if (!friendRequests[toUserId].includes(userId)) {
-                friendRequests[toUserId].push(userId);
-                io.to(toUserId).emit("friendRequest", userId);
-            }
+        if (users[toUserId]) {
+            let toSocketId = users[toUserId]; // ✅ Get socket.id of recipient
+            io.to(toSocketId).emit("friendRequest", userId);
         }
     });
 
     socket.on("acceptRequest", (fromUserId) => {
-        if (friendRequests[userId]?.includes(fromUserId)) {
-            users[userId].friend = fromUserId;
-            users[fromUserId].friend = userId;
-            io.to(userId).emit("chatStarted", fromUserId);
-            io.to(fromUserId).emit("chatStarted", userId);
-            friendRequests[userId] = friendRequests[userId].filter(id => id !== fromUserId);
+        if (users[fromUserId]) {
+            let fromSocketId = users[fromUserId];
+            io.to(fromSocketId).emit("chatStarted", userId);
+            io.to(socket.id).emit("chatStarted", fromUserId);
         }
     });
 
     socket.on("typing", (text) => {
-        let friendId = users[userId]?.friend;
+        let friendId = Object.keys(users).find(id => users[id] === socket.id);
         if (friendId) {
-            io.to(friendId).emit("displayTyping", text);
+            io.to(users[friendId]).emit("displayTyping", text);
         }
     });
 
     socket.on("sendMessage", (message) => {
-        let friendId = users[userId]?.friend;
+        let friendId = Object.keys(users).find(id => users[id] === socket.id);
         if (friendId) {
-            io.to(friendId).emit("receiveMessage", { sender: userId, text: message });
+            io.to(users[friendId]).emit("receiveMessage", { sender: userId, text: message });
         }
     });
 
     socket.on("disconnect", () => {
         console.log("🔴 User Disconnected:", userId);
 
-        let friendId = users[userId]?.friend;
-        if (friendId && users[friendId]) {
-            users[friendId].friend = null;
-            io.to(friendId).emit("chatEnded");
+        let friendId = Object.keys(users).find(id => users[id] === socket.id);
+        if (friendId) {
+            io.to(users[friendId]).emit("chatEnded");
         }
-        if (friendRequests[userId]) {
-            delete friendRequests[userId];
-        }
+
         delete users[userId];
+        delete socketToUser[socket.id];
     });
 });
 
