@@ -4,9 +4,10 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
 app.use(cors({
-    origin: "https://mayankchoudhary.rf.gd",
+    origin: "*", // Allow all origins
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"],
     credentials: true
@@ -20,11 +21,12 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: "https://mayankchoudhary.rf.gd",
+        origin: "*", // Allow WebSocket connections from any network
         methods: ["GET", "POST"],
         allowedHeaders: ["Content-Type"],
         credentials: true
-    }
+    },
+    allowEIO3: true // ✅ This helps fix older browser compatibility issues
 });
 
 let users = {}; 
@@ -87,5 +89,4 @@ io.on("connection", (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`🚀 Server Running on Port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server Running on Port ${PORT}`));
