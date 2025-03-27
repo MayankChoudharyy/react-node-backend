@@ -29,34 +29,37 @@ const io = new Server(server, {
     allowEIO3: true
 });
 
-let users = {}; 
-let socketToUser = {}; 
-let friendRequests = {}; 
+let users = {}; // userId -> socketId mapping
+let socketToUser = {}; // socketId -> userId mapping
 let friends = {}; // ✅ Friend mapping (userId -> friendId)
+let deviceToUser = {}; // ✅ Store userId against device ID
 
-// ✅ Function to generate unique ID from 1 to 100
+// ✅ Function to generate unique userId
 const generateUserId = () => {
-    let id;
-    do {
-        id = Math.floor(Math.random() * 100) + 1;
-    } while (Object.values(users).includes(id));
-    return id.toString();
+    return Math.floor(1000 + Math.random() * 9000).toString(); // 4-digit user ID
 };
 
 io.on("connection", (socket) => {
-    const userId = generateUserId();
+    const deviceId = socket.handshake.query.deviceId; // ✅ Fetch device ID from client
+    let userId;
+
+    if (deviceId && deviceToUser[deviceId]) {
+        userId = deviceToUser[deviceId]; // ✅ Use existing userId
+    } else {
+        userId = generateUserId(); // ✅ Generate new userId if device is new
+        if (deviceId) deviceToUser[deviceId] = userId; // ✅ Save deviceId -> userId mapping
+    }
+
     console.log(`🟢 User Connected: ${userId} (Socket ID: ${socket.id})`);
 
     users[userId] = socket.id; 
     socketToUser[socket.id] = userId; 
-
     io.to(socket.id).emit("userId", userId);
 
     // ✅ Friend request send karega
     socket.on("sendRequest", (toUserId) => {
         if (users[toUserId]) {
-            let toSocketId = users[toUserId];
-            io.to(toSocketId).emit("friendRequest", userId);
+            io.to(users[toUserId]).emit("friendRequest", userId);
         }
     });
 
