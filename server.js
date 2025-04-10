@@ -100,6 +100,23 @@ app.post("/send-otp", async (req, res) => {
 });
 // 🧾 Token verify
 // ... above part of server.js remains the same
+// ✅ OTP Verify Route (missing tha)
+app.post("/verify-otp", async (req, res) => {
+  const { email, otp } = req.body;
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  if (user.otp !== otp) {
+    return res.status(400).json({ message: "Invalid OTP" });
+  }
+
+  user.otp = ""; // OTP clear after successful verification
+  await user.save();
+
+  res.json({ message: "OTP verified successfully" });
+});
+
 
 // Modified Register with userId 1–1000
 app.post("/register", async (req, res) => {
