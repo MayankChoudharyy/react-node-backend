@@ -233,7 +233,13 @@ app.post("/register", async (req, res) => {
         io.to(users[friendId]).emit("receiveMessage", { sender: userId, text: message });
       }
     });
-  
+  socket.on("updateMessage", ({ index, newText }) => {
+  const friendId = friends[userId];
+  if (friendId && users[friendId]) {
+    io.to(users[friendId]).emit("updatedMessage", { index, newText });
+  }
+});
+
     socket.on("disconnect", () => {
       const friendId = friends[userId];
       if (friendId && users[friendId]) {
