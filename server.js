@@ -116,6 +116,19 @@ app.post("/verify-otp", async (req, res) => {
 
   res.json({ message: "OTP verified successfully" });
 });
+// ✅ Reset Password Route (add this below /verify-otp)
+app.post("/reset-password", async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  user.password = newPassword;
+  user.otp = ""; // clear OTP if still present
+  await user.save();
+
+  res.json({ message: "Password reset successful" });
+});
 
 
 // Modified Register with userId 1–1000
