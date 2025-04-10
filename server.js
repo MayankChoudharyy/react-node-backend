@@ -11,12 +11,18 @@ const bodyParser = require("body-parser");
 const app = express();
 const PORT = process.env.PORT || 443;
 
-// const MONGODB_URI = "mongodb+srv://baggarmrjat:292528295461@cluster0.o273b.mongodb.net/miki-chat";
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = "mongodb+srv://baggarmrjat:292528295461@cluster0.o273b.mongodb.net/miki-chat";
+// const MONGODB_URI = process.env.MONGODB_URI;
 const JWT_SECRET = process.env.JWT_SECRET;
 const EMAIL_USER = process.env.EMAIL_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS;
-
+console.log("🚀 ENV CHECK:", {
+    MONGODB_URI,
+    JWT_SECRET,
+    EMAIL_USER,
+    EMAIL_PASS,
+  });
+  
 app.use(cors());
 app.use(bodyParser.json());
 
