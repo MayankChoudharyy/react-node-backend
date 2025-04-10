@@ -39,16 +39,24 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model("User", userSchema);
 
-// 🔐 Register
 app.post("/register", async (req, res) => {
-  const { name, email, password } = req.body;
-  const exists = await User.findOne({ email });
-  if (exists) return res.status(400).json({ message: "User already exists" });
-
-  const newUser = new User({ name, email, password });
-  await newUser.save();
-  res.json({ message: "Registered successfully" });
-});
+    const { name, email, password } = req.body;
+  
+    const lastUser = await User.findOne().sort({ userId: -1 });
+    const userId = lastUser ? lastUser.userId + 1 : 1;
+  
+    const user = new User({
+      name,
+      email,
+      password,
+      userId, // ✅ ADD THIS!
+    });
+  
+    await user.save();
+  
+    console.log("✅ New user created with userId:", userId);
+    res.status(201).json({ message: "User created" });
+  });
 
 // 🔐 Login
 app.post("/login", async (req, res) => {
