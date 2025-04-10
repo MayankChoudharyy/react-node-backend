@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -10,10 +11,11 @@ const bodyParser = require("body-parser");
 const app = express();
 const PORT = process.env.PORT || 443;
 
-const MONGODB_URI = "mongodb+srv://baggarmrjat:292528295461@cluster0.o273b.mongodb.net/miki-chat";
-const JWT_SECRET = "miki-chat-secret-key-2024";
-const EMAIL_USER = "mayank.prpwebs@gmail.com";
-const EMAIL_PASS = "kimgodbxxefefpjv";
+// const MONGODB_URI = "mongodb+srv://baggarmrjat:292528295461@cluster0.o273b.mongodb.net/miki-chat";
+const MONGODB_URI = process.env.MONGODB_URI;
+const JWT_SECRET = process.env.JWT_SECRET;
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS;
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -33,24 +35,14 @@ const User = mongoose.model("User", userSchema);
 
 // 🔐 Register
 app.post("/register", async (req, res) => {
-    const { name, email, password } = req.body;
-  
-    const lastUser = await User.findOne().sort({ userId: -1 });
-    const userId = lastUser ? lastUser.userId + 1 : 1;
-  
-    const user = new User({
-      name,
-      email,
-      password,
-      userId, // ✅ ADD THIS!
-    });
-  
-    await user.save();
-  
-    console.log("✅ New user created with userId:", userId);
-    res.status(201).json({ message: "User created" });
-  });
-  
+  const { name, email, password } = req.body;
+  const exists = await User.findOne({ email });
+  if (exists) return res.status(400).json({ message: "User already exists" });
+
+  const newUser = new User({ name, email, password });
+  await newUser.save();
+  res.json({ message: "Registered successfully" });
+});
 
 // 🔐 Login
 app.post("/login", async (req, res) => {
