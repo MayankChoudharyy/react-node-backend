@@ -9,7 +9,7 @@ const nodemailer = require("nodemailer");
 const bodyParser = require("body-parser");
 
 const app = express();
-const PORT = process.env.PORT || 443;
+const PORT = process.env.PORT || 5000;
 
 // const MONGODB_URI = "mongodb+srv://baggarmrjat:292528295461@cluster0.o273b.mongodb.net/miki-chat";
 const MONGODB_URI = process.env.MONGODB_URI;
