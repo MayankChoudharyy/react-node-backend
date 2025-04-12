@@ -39,6 +39,16 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model("User", userSchema);
 
+//new featuere
+const messageSchema = new mongoose.Schema({
+  sender: String,
+  receiver: String,
+  text: String,
+  timestamp: { type: Date, default: Date.now }
+});
+const Message = mongoose.model("Message", messageSchema);
+
+
 app.post("/register", async (req, res) => {
     const { name, email, password } = req.body;
   
@@ -199,11 +209,35 @@ app.post("/register", async (req, res) => {
       next(new Error("Authentication error"));
     }
   });
-  
+  // 🧠 Track per-pair cleared users
+let clearedChats = {}; // Format: { "1-2": ["1", "2"] }
+
   io.on("connection", (socket) => {
     const userId = socket.userId;
     users[userId] = socket.id;
     socket.emit("userId", userId);
+    //new feature
+    socket.on("getMessages", async (friendId, cb) => {
+      const pairKey = [userId, friendId].sort().join("-");
+      const clearedBy = clearedChats[pairKey] || [];
+    
+      let chat = await Message.find({
+        $or: [
+          { sender: userId, receiver: friendId },
+          { sender: friendId, receiver: userId },
+        ]
+      }).sort({ timestamp: 1 });
+    
+      if (clearedBy.includes(userId)) {
+        chat = []; // ✅ Full hide for this user
+      }
+    
+      cb(chat);
+    });
+    
+    
+    
+    
   
     socket.on("sendRequest", (toUserId) => {
       if (users[toUserId]) {
@@ -227,27 +261,95 @@ app.post("/register", async (req, res) => {
       }
     });
   
-    socket.on("sendMessage", (message) => {
+    // socket.on("sendMessage", (message) => {
+    //   const friendId = friends[userId];
+    //   if (friendId && users[friendId]) {
+    //     io.to(users[friendId]).emit("receiveMessage", { sender: userId, text: message });
+    //   }
+    // });
+    //new feature
+    socket.on("sendMessage", async (message) => {
       const friendId = friends[userId];
       if (friendId && users[friendId]) {
-        io.to(users[friendId]).emit("receiveMessage", { sender: userId, text: message });
+        const msg = { sender: userId, receiver: friendId, text: message };
+        io.to(users[friendId]).emit("receiveMessage", msg);
+    
+        // ✅ Save to DB
+        await Message.create(msg);
       }
     });
+    
   socket.on("updateMessage", ({ index, newText }) => {
   const friendId = friends[userId];
   if (friendId && users[friendId]) {
     io.to(users[friendId]).emit("updatedMessage", { index, newText });
   }
 });
+socket.on("manual_disconnect", (targetId) => {
+  const friendId = targetId;
+  if (friendId && users[friendId]) {
+    io.to(users[friendId]).emit("chatEnded"); // Notify friend
+  }
 
+  // Remove mappings
+  if (friends[userId]) delete friends[userId];
+  if (friends[friendId] === userId) delete friends[friendId];
+});
+
+    // socket.on("disconnect", () => {
+    //   const friendId = friends[userId];
+    //   if (friendId && users[friendId]) {
+    //     io.to(users[friendId]).emit("chatEnded");
+    //   }
+    //   delete users[userId];
+    //   delete friends[userId];
+    // });
     socket.on("disconnect", () => {
       const friendId = friends[userId];
+    
       if (friendId && users[friendId]) {
+        // Notify the friend that user has disconnected
         io.to(users[friendId]).emit("chatEnded");
+    
+        // Also remove their mapping to avoid ghost connection
+        if (friends[friendId] === userId) {
+          delete friends[friendId];
+        }
       }
+    
       delete users[userId];
       delete friends[userId];
+    
+      console.log(`❌ User ${userId} disconnected`);
     });
+    
+    //new feature
+    socket.on("clearChat", async ({ targetId, selfOnly }) => {
+      const pairKey = [userId, targetId].sort().join("-");
+      if (!clearedChats[pairKey]) clearedChats[pairKey] = [];
+    
+      // Add current user to cleared list
+      if (!clearedChats[pairKey].includes(userId)) {
+        clearedChats[pairKey].push(userId);
+      }
+    
+      // ✅ If both have cleared, then delete messages from DB
+      if (clearedChats[pairKey].includes(userId) && clearedChats[pairKey].includes(targetId)) {
+        await Message.deleteMany({
+          $or: [
+            { sender: userId, receiver: targetId },
+            { sender: targetId, receiver: userId },
+          ]
+        });
+    
+        // Clear from map
+        delete clearedChats[pairKey];
+      }
+    });
+    
+    
+    
+    
   });
   
   server.listen(PORT, "0.0.0.0", () => console.log(`🚀 Server Running on Port ${PORT}`));
